@@ -414,7 +414,7 @@ def quit_app(_n_intervals, state):
 def main() -> None:
     url = f"http://127.0.0.1:{APP_PORT}"
     print(f"Open {url}")
-    app.run_server(debug=False, port=APP_PORT)
+    app.run(debug=False, port=APP_PORT)
 
 
 if __name__ == "__main__":

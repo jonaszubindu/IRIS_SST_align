@@ -5,7 +5,6 @@ import io
 import json
 import os
 import signal
-import webbrowser
 
 os.environ.setdefault("SUNPY_CONFIGDIR", "/tmp/sunpy")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib-codex")
@@ -403,8 +402,7 @@ def quit_app(_n_intervals, state):
 def main() -> None:
     url = f"http://127.0.0.1:{APP_PORT}"
     print(f"Open {url}")
-    webbrowser.open(url)
-    app.run_server(debug=False, port=APP_PORT)
+    app.run(debug=False, port=APP_PORT)
 
 
 if __name__ == "__main__":
