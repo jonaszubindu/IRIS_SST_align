@@ -40,11 +40,11 @@ prompt_choice() {
   shift
   local choices=("$@")
   local answer
-  echo "$prompt"
+  echo "$prompt" >&2
   for choice in "${choices[@]}"; do
-    echo "  $choice"
+    echo "  $choice" >&2
   done
-  read -r -p "Select an option: " answer
+  read -r -p "Select an option: " answer >&2
   echo "$answer"
 }
 
@@ -181,7 +181,14 @@ run_iris_app() {
 
   log "Launching IRIS manual alignment app"
   echo "Use the app, press Save, then Quit And Close."
+  set +e
   "$PYTHON_BIN" "$REPO_DIR/interactive_iris_hmi_align.py"
+  local app_status=$?
+  set -e
+  if [[ "$app_status" -ne 0 && "$app_status" -ne 143 ]]; then
+    echo "IRIS app exited unexpectedly with status $app_status" >&2
+    exit "$app_status"
+  fi
 
   verify_iris_save "$report_mtime_before" "$fits_mtime_before"
 }
@@ -197,7 +204,14 @@ run_sst_app() {
 
   log "Launching SST manual alignment app"
   echo "Use the app, press Save, then Quit And Close."
+  set +e
   "$PYTHON_BIN" "$REPO_DIR/interactive_sst_manual_align.py"
+  local app_status=$?
+  set -e
+  if [[ "$app_status" -ne 0 && "$app_status" -ne 143 ]]; then
+    echo "SST app exited unexpectedly with status $app_status" >&2
+    exit "$app_status"
+  fi
 
   verify_sst_save "$report_mtime_before" "$fits_mtime_before" "$manual_mtime_before"
 }

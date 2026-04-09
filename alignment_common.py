@@ -321,10 +321,11 @@ def create_initial_report(
     sst_times = read_wb_times(SST_WB_ALIGNED_PATH)
     sst_frame_index = 0
     sst_time = sst_times[sst_frame_index]
+    iris_time_path = IRIS_ALIGNED_PATH if IRIS_ALIGNED_PATH.exists() else IRIS_SOURCE_PATH
     if iris_frame_index is None:
-        iris_frame_index, iris_time = closest_iris_frame(sst_time, IRIS_ALIGNED_PATH)
+        iris_frame_index, iris_time = closest_iris_frame(sst_time, iris_time_path)
     else:
-        iris_time = read_iris_times(IRIS_ALIGNED_PATH)[int(iris_frame_index)]
+        iris_time = read_iris_times(iris_time_path)[int(iris_frame_index)]
     return {
         "reference_hmi": str(HMI_PATH),
         "iris_output": str(IRIS_ALIGNED_PATH),
@@ -655,7 +656,7 @@ def update_nb_cube_wcs_from_wb(
             "Refusing to copy or rewrite it. Please provide a complete NB cube."
         )
     try:
-        with fits.open(nb_path, memmap=False) as hdul:
+        with fits.open(nb_path, memmap=True) as hdul:
             nb_header = hdul[0].header.copy()
     except Exception as exc:  # pragma: no cover - depends on local NB file state
         raise RuntimeError(
@@ -663,9 +664,11 @@ def update_nb_cube_wcs_from_wb(
             "This local NB file appears truncated; use a complete cube to write an aligned NB product."
         ) from exc
 
+    if output_path.exists():
+        output_path.unlink()
     shutil.copy2(nb_path, output_path)
     wcs_hdu = build_nb_wcs_tab_from_aligned_wb(wb_aligned_path, nb_header)
-    with fits.open(output_path, mode="update", memmap=False) as hdul:
+    with fits.open(output_path, mode="update", memmap=True) as hdul:
         hdr = hdul[0].header
         wb_hdr = fits.getheader(wb_aligned_path, 0)
         hdr["ALNWX"] = float(wb_hdr.get("ALNWX", 0.0))
