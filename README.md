@@ -41,10 +41,73 @@ The workflow is intentionally simple:
 
 ## Installation
 
-Install from the repository root:
+Step by step:
+
+1. Clone the repository:
+
+```bash
+git clone https://github.com/jonaszubindu/IRIS_SST_align.git
+cd IRIS_SST_align
+```
+
+2. Create a virtual environment:
+
+```bash
+python3.10 -m venv .venv
+```
+
+This project requires Python `3.10` or newer. If your system `python` is older, create the environment with `python3.10` or `python3.11` explicitly.
+
+3. Activate it:
+
+On macOS or Linux:
+
+```bash
+source .venv/bin/activate
+```
+
+4. Upgrade `pip`:
+
+```bash
+python -m pip install --upgrade pip
+```
+
+5. Install the package in editable mode:
 
 ```bash
 pip install -e .
+```
+
+If you pull a newer version of the repo later, rerun:
+
+```bash
+python -m pip install -e .
+```
+
+to refresh the installed dependencies and entry points.
+
+6. Point the code at your local data directory:
+
+```bash
+export IRIS_SST_ALIGN_DATA_DIR=/path/to/Align_IRIS_SST_proj
+```
+
+7. Set your JSOC email for automatic HMI downloads:
+
+```bash
+export IRIS_SST_ALIGN_JSOC_EMAIL=jonas.zbinden@aiub.unibe.ch
+```
+
+8. Set the NOAA active-region number for the observation:
+
+```bash
+export IRIS_SST_ALIGN_NOAA_AR=14114
+```
+
+9. Run the full workflow:
+
+```bash
+iris-sst-align-run
 ```
 
 This installs command-line entry points such as:

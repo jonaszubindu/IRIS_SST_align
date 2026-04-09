@@ -52,7 +52,11 @@ prompt_choice() {
 mtime_or_zero() {
   local path="$1"
   if [[ -e "$path" ]]; then
-    stat -f "%m" "$path"
+    if stat -c "%Y" "$path" >/dev/null 2>&1; then
+      stat -c "%Y" "$path"
+    else
+      stat -f "%m" "$path"
+    fi
   else
     echo 0
   fi
