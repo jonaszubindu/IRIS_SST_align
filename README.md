@@ -1,121 +1,176 @@
-# IRIS / SST Manual Alignment Workflow
+# IRIS / SST Alignment Workflow
 
-This repository is now intentionally minimal. The workflow is:
+This repository aligns SST wideband and narrowband products with IRIS SJI data, using HMI as the reference frame for the global coordinate system.
 
-1. Create a simple initial alignment.
-2. Refine the SST pointing by hand in the interactive app.
-3. Reuse that solved SST wideband WCS for narrowband products and overlap checks.
+The workflow is intentionally simple:
 
-The codebase no longer keeps the earlier experimental affine, non-rigid, or multi-stage search scripts.
+1. Build a coarse initial alignment.
+2. Refine IRIS manually against HMI.
+3. Refine SST manually against IRIS.
+4. Regenerate WB comparison products.
+5. Optionally build the aligned NB cube if enough disk space is available.
 
-## Files
+## Repository Layout
 
-- [align_iris_sst.py](/Users/jonaszbinden/Documents/Playground/align_iris_sst.py)
-  Resets the outputs to a clean initial alignment:
-  - one global SST shift
-  - optional IRIS shift
-  - optional IRIS rotation
+- `align_iris_sst.py`
+  Creates the initial aligned IRIS and SST WB products.
 
-- [interactive_sst_manual_align.py](/Users/jonaszbinden/Documents/Playground/interactive_sst_manual_align.py)
-  Plotly app for manual SST center placement on top of IRIS.
+- `interactive_iris_hmi_align.py`
+  Manual Plotly/Dash app for refining IRIS against HMI.
 
-- [sunpy_alignment_check.py](/Users/jonaszbinden/Documents/Playground/sunpy_alignment_check.py)
-  Rebuilds the simple SunPy blink GIF for the currently saved solution.
+- `interactive_sst_manual_align.py`
+  Manual Plotly/Dash app for refining SST against IRIS.
 
-- [update_sst_nb_wcs.py](/Users/jonaszbinden/Documents/Playground/update_sst_nb_wcs.py)
-  CLI wrapper that propagates the aligned SST WB spatial WCS into an NB cube.
+- `plot_vs_hmi.py`
+  Creates HMI comparison figures for IRIS or SST.
 
-- [plot_sst_iris_time_overlap.py](/Users/jonaszbinden/Documents/Playground/plot_sst_iris_time_overlap.py)
-  Makes multi-timestep overlap plots for IRIS versus SST WB or SST NB wing images.
+- `plot_sst_iris_time_overlap.py`
+  Creates time-overlap checks between SST and IRIS.
 
-- [alignment_common.py](/Users/jonaszbinden/Documents/Playground/alignment_common.py)
-  Shared FITS, timing, WCS, and plotting helpers.
+- `sunpy_alignment_check.py`
+  Builds the SunPy blink GIF alignment check.
 
-## Inputs
+- `update_sst_nb_wcs.py`
+  Propagates the aligned SST WB WCS into the NB cube.
 
-- WB source: `/Users/jonaszbinden/Desktop/Align_IRIS_SST_proj/wb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_im.fits`
-- NB source: `/Users/jonaszbinden/Desktop/Align_IRIS_SST_proj/nb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_cmapcorr_im.fits`
-- IRIS source: `/Users/jonaszbinden/Desktop/Align_IRIS_SST_proj/iris_l2_20250619_072925_3660106834_SJI_2832_t000.fits`
-- HMI reference: `/Users/jonaszbinden/Documents/Playground/data/hmi/hmi.sharp_720s.13354.20250619_083600_TAI.continuum.fits`
+- `alignment_common.py`
+  Shared paths, FITS helpers, WCS logic, and plotting helpers.
 
-## Initial Alignment
+- `run_full_pipeline.sh`
+  Runs the full workflow, including the interactive steps.
 
-Run:
+## Paths You Must Check On Another Machine
 
-```bash
-python /Users/jonaszbinden/Documents/Playground/align_iris_sst.py --reset
-```
+Before running this repo elsewhere, check these paths in `alignment_common.py`:
 
-By default this applies:
+- `DATA_DIR`
+  This is currently set to the local folder that contains the SST, IRIS, and helper files.
 
-- SST shift: `(+3.60263, -3.59411)` arcsec
-- IRIS shift: `(0.0, 0.0)` arcsec
-- IRIS rotation: `0.0` deg
+- `SST_WB_SOURCE_PATH`
+- `SST_NB_SOURCE_PATH`
+- `IRIS_SOURCE_PATH`
+- `STIC_UTILS_PATH`
 
-The outputs are:
+These are derived from `DATA_DIR`, so in most cases changing `DATA_DIR` is enough.
 
-- `/Users/jonaszbinden/Documents/Playground/outputs/wb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_im_aligned.fits`
-- `/Users/jonaszbinden/Documents/Playground/outputs/iris_l2_20250619_072925_3660106834_SJI_2832_t000_aligned.fits`
-- `/Users/jonaszbinden/Documents/Playground/outputs/alignment_report.json`
+Also check:
 
-## Manual Refinement
+- `HMI_PATH`
+  This points to the local HMI FITS file under `data/hmi/`.
+  On another machine, either place the HMI file in the same relative location inside the repo:
+  `data/hmi/hmi.sharp_720s.13354.20250619_083600_TAI.continuum.fits`
+  or update `HMI_PATH` accordingly.
 
-Run:
+You do not need to change:
 
-```bash
-python /Users/jonaszbinden/Documents/Playground/interactive_sst_manual_align.py
-```
+- `WORKDIR`
+  It is derived automatically from the location of `alignment_common.py`.
 
-The app:
+- `OUTPUT_DIR`
+  It is derived automatically as `WORKDIR / "outputs"`.
 
-- opens in the browser
-- shows IRIS and the projected SST WB image
-- uses one mouse click to set the new SST center
-- saves with `s` or the `Save` button
-- enables `Quit And Close` after a successful save
+## Required Input Files
 
-Saving updates:
+The code expects these source files:
 
-- `/Users/jonaszbinden/Documents/Playground/outputs/wb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_im_aligned.fits`
-- `/Users/jonaszbinden/Documents/Playground/outputs/sst_manual_adjustment.json`
-- `/Users/jonaszbinden/Documents/Playground/outputs/alignment_report.json`
-- `/Users/jonaszbinden/Documents/Playground/outputs/alignment_check_sunpy.gif`
+- `wb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_im.fits`
+- `nb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_cmapcorr_im.fits`
+- `iris_l2_20250619_072925_3660106834_SJI_2832_t000.fits`
+- `STIC_pyfun_utils.py`
 
-## Narrowband WCS Propagation
+The HMI reference file is expected at:
 
-The NB updater uses the aligned WB scan-by-scan corners and times, then builds the NB `WCS-TAB` coordinates as:
+- `data/hmi/hmi.sharp_720s.13354.20250619_083600_TAI.continuum.fits`
 
-- `x, y` from the aligned WB cube
-- `wavelength` from `WAVEMIN`, `WAVEMAX`, and `NAXIS3`
-- `time` from the aligned WB scan times
+## Running The Workflow
 
-Run:
+Run from the repository root:
 
 ```bash
-python /Users/jonaszbinden/Documents/Playground/update_sst_nb_wcs.py
+cd /path/to/IRIS_SST_align
+bash run_full_pipeline.sh
 ```
 
-Important note:
+The script will:
 
-The local NB file is still truncated, so writing a full aligned NB FITS here may fail until a complete cube is available. The propagation function is in place for a complete NB file.
+1. Check the main input files.
+2. Remove old output products.
+3. Run the initial coarse alignment.
+4. Launch the interactive IRIS app.
+5. Launch the interactive SST app.
+6. Regenerate WB comparison products.
+7. Ask whether you want to continue, rerun interactive steps, or exit.
+8. Optionally generate NB comparison plots.
+9. Optionally build the aligned NB cube.
 
-## Time-Overlap Plots
+## Manual Commands
 
-To inspect the stability of the pointing over time:
+If you want to run steps separately:
+
+Initial alignment:
 
 ```bash
-python /Users/jonaszbinden/Documents/Playground/plot_sst_iris_time_overlap.py --sst-kind wb
+python align_iris_sst.py --reset
 ```
 
-For NB wing images on a complete cube:
+IRIS manual alignment:
 
 ```bash
-python /Users/jonaszbinden/Documents/Playground/plot_sst_iris_time_overlap.py --sst-kind nb
+python interactive_iris_hmi_align.py
 ```
 
-Outputs:
+SST manual alignment:
 
-- `/Users/jonaszbinden/Documents/Playground/outputs/sst_iris_time_overlap.png`
-- `/Users/jonaszbinden/Documents/Playground/outputs/sst_iris_time_overlap_matches.json`
+```bash
+python interactive_sst_manual_align.py
+```
 
-The NB mode uses the outermost wavelength planes as a proxy for the WB morphology.
+WB comparison plots:
+
+```bash
+python plot_vs_hmi.py --sst-kind wb --num-samples 3
+python plot_sst_iris_time_overlap.py --sst-kind wb --num-samples 3
+python sunpy_alignment_check.py
+```
+
+NB comparison plots:
+
+```bash
+python plot_vs_hmi.py --sst-kind nb --num-samples 3
+python plot_sst_iris_time_overlap.py --sst-kind nb --num-samples 3
+```
+
+NB aligned cube:
+
+```bash
+python update_sst_nb_wcs.py
+```
+
+## Outputs
+
+The main outputs are written into `outputs/`.
+
+Typical files are:
+
+- `outputs/wb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_im_aligned.fits`
+- `outputs/iris_l2_20250619_072925_3660106834_SJI_2832_t000_aligned.fits`
+- `outputs/alignment_report.json`
+- `outputs/compare_to_hmi_wb.png`
+- `outputs/sst_iris_time_overlap_wb.png`
+- `outputs/alignment_check_sunpy.gif`
+
+If NB products are enabled and disk space allows:
+
+- `outputs/compare_to_hmi_nb.png`
+- `outputs/sst_iris_time_overlap_nb.png`
+- `outputs/nb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_cmapcorr_im_aligned.fits`
+
+## Disk Space Note
+
+The aligned NB cube is large. Building it can require substantially more free disk space than the final file size alone, because FITS updates may temporarily need additional write room during flush/resize.
+
+If disk space is tight, it is safer to:
+
+- skip the NB aligned cube locally
+- generate only WB and NB comparison plots
+- or build the NB aligned cube on a larger remote machine
