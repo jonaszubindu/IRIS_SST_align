@@ -72,6 +72,9 @@ You can configure the repo without editing the code by setting environment varia
 - `IRIS_SST_ALIGN_JSOC_EMAIL`
   Registered JSOC email address used when the HMI file needs to be downloaded automatically through `drms`.
 
+- `IRIS_SST_ALIGN_NOAA_AR`
+  NOAA active-region number used to build the automatic HMI JSOC query.
+
 If you prefer editing the code directly, the relevant paths are in `alignment_common.py`.
 
 These source-file paths are derived from `DATA_DIR`, so in most cases changing `IRIS_SST_ALIGN_DATA_DIR` is enough:
@@ -102,7 +105,12 @@ The HMI reference file is expected at:
 
 - `data/hmi/hmi.sharp_720s.13354.20250619_083600_TAI.continuum.fits`
 
-If it is missing, the code will try to download it automatically from JSOC via `drms` using `IRIS_SST_ALIGN_JSOC_EMAIL` or `JSOC_EMAIL`.
+If it is missing, the code will try to download it automatically from JSOC via `drms` using:
+
+- `IRIS_SST_ALIGN_JSOC_EMAIL` or `JSOC_EMAIL`
+- `IRIS_SST_ALIGN_NOAA_AR`
+
+The query time is inferred from the current SST WB or IRIS source files, so the automatic download can adapt to different observing days as long as the active-region number is provided.
 
 ## Running The Workflow
 
@@ -177,7 +185,7 @@ iris-sst-align-update-nb
 Explicit HMI download:
 
 ```bash
-iris-sst-align-fetch-hmi --email you@example.org
+iris-sst-align-fetch-hmi --email you@example.org --noaa-ar 14114
 ```
 
 ## Outputs

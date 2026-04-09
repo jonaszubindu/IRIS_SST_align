@@ -5,6 +5,7 @@ import argparse
 from alignment_common import (
     DEFAULT_IRIS_ROTATION_DEG,
     DEFAULT_IRIS_SHIFT_ARCSEC,
+    DEFAULT_NOAA_AR,
     DEFAULT_SST_SHIFT_ARCSEC,
     IRIS_ALIGNED_PATH,
     REPORT_PATH,
@@ -47,6 +48,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip the simple automatic IRIS-to-HMI solve and use the provided IRIS shift/rotation values directly.",
     )
+    parser.add_argument(
+        "--noaa-ar",
+        default=DEFAULT_NOAA_AR,
+        help="NOAA active-region number used to auto-download the HMI reference when needed.",
+    )
     return parser.parse_args()
 
 
@@ -58,6 +64,7 @@ def main() -> None:
         iris_shift_arcsec=(args.iris_dx, args.iris_dy),
         iris_rotation_deg=args.iris_rotation,
         solve_iris_against_hmi=not args.no_solve_iris_hmi,
+        noaa_ar=args.noaa_ar,
     )
     print("Initial alignment products are ready.")
     print(f"SST aligned FITS: {SST_WB_ALIGNED_PATH}")

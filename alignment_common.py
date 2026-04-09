@@ -19,17 +19,18 @@ DATA_HMI_DIR = WORKDIR / "data/hmi"
 DEFAULT_DATA_DIR = Path("/Users/jonaszbinden/Desktop/Align_IRIS_SST_proj")
 DATA_DIR = Path(os.environ.get("IRIS_SST_ALIGN_DATA_DIR", str(DEFAULT_DATA_DIR))).expanduser()
 
-DEFAULT_HMI_FILENAME = "hmi.sharp_720s.13354.20250619_083600_TAI.continuum.fits"
-HMI_PATH = Path(os.environ.get("IRIS_SST_ALIGN_HMI_PATH", str(DATA_HMI_DIR / DEFAULT_HMI_FILENAME))).expanduser()
+DEFAULT_HMI_FILENAME = "hmi.sharp_720s.reference.continuum.fits"
+EXPLICIT_HMI_PATH = os.environ.get("IRIS_SST_ALIGN_HMI_PATH", "").strip()
+HMI_PATH = Path(EXPLICIT_HMI_PATH).expanduser() if EXPLICIT_HMI_PATH else (DATA_HMI_DIR / DEFAULT_HMI_FILENAME)
 IRIS_SOURCE_PATH = DATA_DIR / "iris_l2_20250619_072925_3660106834_SJI_2832_t000.fits"
 SST_WB_SOURCE_PATH = DATA_DIR / "wb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_im.fits"
 SST_NB_SOURCE_PATH = DATA_DIR / "nb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_cmapcorr_im.fits"
 STIC_UTILS_PATH = DATA_DIR / "STIC_pyfun_utils.py"
 
 DEFAULT_JSOC_EMAIL = os.environ.get("IRIS_SST_ALIGN_JSOC_EMAIL", os.environ.get("JSOC_EMAIL", "")).strip()
-DEFAULT_HMI_SERIES = "hmi.sharp_720s[][2025.06.19_08:35:00_TAI/1m][?(NOAA_AR=14114)?]"
+DEFAULT_NOAA_AR = os.environ.get("IRIS_SST_ALIGN_NOAA_AR", "").strip()
+DEFAULT_HMI_SERIES_TEMPLATE = "hmi.sharp_720s[][{time}_TAI/1m][?(NOAA_AR={noaa_ar})?]"
 DEFAULT_HMI_SEGMENT = "continuum"
-DEFAULT_HMI_EXPORT_QUERY = f"{DEFAULT_HMI_SERIES}{{{DEFAULT_HMI_SEGMENT}}}"
 
 IRIS_ALIGNED_PATH = OUTPUT_DIR / "iris_l2_20250619_072925_3660106834_SJI_2832_t000_aligned.fits"
 SST_WB_ALIGNED_PATH = OUTPUT_DIR / "wb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_im_aligned.fits"
@@ -50,10 +51,59 @@ def ensure_hmi_dir() -> None:
     HMI_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
+def infer_reference_time(
+    iris_path: Path = IRIS_SOURCE_PATH,
+    wb_path: Path = SST_WB_SOURCE_PATH,
+) -> Time:
+    wb_path = Path(wb_path)
+    if wb_path.exists():
+        return read_wb_times(wb_path)[0]
+    iris_path = Path(iris_path)
+    if iris_path.exists():
+        return read_iris_times(iris_path)[0]
+    raise RuntimeError(
+        "Could not infer the HMI reference time because neither the SST WB source nor the IRIS source file exists."
+    )
+
+
+def format_jsoc_tai_time(reference_time: Time) -> str:
+    return reference_time.tai.strftime("%Y.%m.%d_%H:%M:%S")
+
+
+def build_hmi_export_query(
+    noaa_ar: str | int,
+    reference_time: Time,
+    segment: str = DEFAULT_HMI_SEGMENT,
+) -> str:
+    noaa_ar_str = str(noaa_ar).strip()
+    if not noaa_ar_str:
+        raise RuntimeError(
+            "A NOAA active-region number is required to auto-download HMI. "
+            "Set IRIS_SST_ALIGN_NOAA_AR or pass --noaa-ar."
+        )
+    series = DEFAULT_HMI_SERIES_TEMPLATE.format(
+        time=format_jsoc_tai_time(reference_time),
+        noaa_ar=noaa_ar_str,
+    )
+    return f"{series}{{{segment}}}"
+
+
+def default_hmi_output_path(
+    noaa_ar: str | int,
+    reference_time: Time,
+    segment: str = DEFAULT_HMI_SEGMENT,
+) -> Path:
+    timestamp = reference_time.tai.strftime("%Y%m%d_%H%M%S")
+    return DATA_HMI_DIR / f"hmi.sharp_720s.noaa{str(noaa_ar).strip()}.{timestamp}_TAI.{segment}.fits"
+
+
 def export_hmi_reference(
     email: str,
-    output_path: Path = HMI_PATH,
-    export_query: str = DEFAULT_HMI_EXPORT_QUERY,
+    output_path: Path | None = None,
+    noaa_ar: str | int | None = None,
+    export_query: str | None = None,
+    reference_time: Time | None = None,
+    segment: str = DEFAULT_HMI_SEGMENT,
 ) -> Path:
     try:
         import drms
@@ -69,8 +119,20 @@ def export_hmi_reference(
             "Set IRIS_SST_ALIGN_JSOC_EMAIL or JSOC_EMAIL, or place the HMI FITS at the configured HMI path."
         )
 
-    ensure_hmi_dir()
+    resolved_noaa_ar = str(noaa_ar or DEFAULT_NOAA_AR).strip()
+    if export_query is None:
+        if reference_time is None:
+            reference_time = infer_reference_time()
+        export_query = build_hmi_export_query(resolved_noaa_ar, reference_time, segment=segment)
+    if output_path is None:
+        if EXPLICIT_HMI_PATH:
+            output_path = HMI_PATH
+        else:
+            if reference_time is None:
+                reference_time = infer_reference_time()
+            output_path = default_hmi_output_path(resolved_noaa_ar, reference_time, segment=segment)
     output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     client = drms.Client(email=email)
     export_request = client.export(export_query, method="url", protocol="fits")
     if hasattr(export_request, "wait"):
@@ -94,15 +156,48 @@ def export_hmi_reference(
 
 
 def ensure_hmi_fits(
-    output_path: Path = HMI_PATH,
+    output_path: Path | None = None,
     email: str | None = None,
-    export_query: str = DEFAULT_HMI_EXPORT_QUERY,
+    noaa_ar: str | int | None = None,
+    export_query: str | None = None,
+    reference_time: Time | None = None,
+    segment: str = DEFAULT_HMI_SEGMENT,
 ) -> Path:
+    if output_path is None:
+        if EXPLICIT_HMI_PATH:
+            output_path = HMI_PATH
+        elif HMI_PATH.exists():
+            output_path = HMI_PATH
+        elif REPORT_PATH.exists():
+            report = load_report()
+            report_hmi_value = str(report.get("reference_hmi", "")).strip()
+            report_hmi = Path(report_hmi_value).expanduser() if report_hmi_value else None
+            if report_hmi and report_hmi.exists():
+                output_path = report_hmi
+        elif DATA_HMI_DIR.exists():
+            existing_hmi = sorted(DATA_HMI_DIR.glob("*.fits"), key=lambda path: path.stat().st_mtime, reverse=True)
+            if existing_hmi:
+                output_path = existing_hmi[0]
+        else:
+            resolved_noaa_ar = str(noaa_ar or DEFAULT_NOAA_AR).strip()
+            if resolved_noaa_ar:
+                if reference_time is None:
+                    reference_time = infer_reference_time()
+                output_path = default_hmi_output_path(resolved_noaa_ar, reference_time, segment=segment)
+            else:
+                output_path = HMI_PATH
     output_path = Path(output_path)
     if output_path.exists():
         return output_path
     resolved_email = (email or DEFAULT_JSOC_EMAIL).strip()
-    return export_hmi_reference(resolved_email, output_path=output_path, export_query=export_query)
+    return export_hmi_reference(
+        resolved_email,
+        output_path=output_path,
+        noaa_ar=noaa_ar,
+        export_query=export_query,
+        reference_time=reference_time,
+        segment=segment,
+    )
 
 
 def load_report() -> dict:
@@ -385,6 +480,8 @@ def create_initial_report(
     iris_shift_arcsec: tuple[float, float] = DEFAULT_IRIS_SHIFT_ARCSEC,
     iris_rotation_deg: float = DEFAULT_IRIS_ROTATION_DEG,
     iris_frame_index: int | None = None,
+    reference_hmi_path: Path | None = None,
+    noaa_ar: str | int | None = None,
 ) -> dict:
     sst_times = read_wb_times(SST_WB_ALIGNED_PATH)
     sst_frame_index = 0
@@ -395,7 +492,8 @@ def create_initial_report(
     else:
         iris_time = read_iris_times(iris_time_path)[int(iris_frame_index)]
     return {
-        "reference_hmi": str(HMI_PATH),
+        "reference_hmi": str(reference_hmi_path or HMI_PATH),
+        "noaa_active_region": str(noaa_ar or DEFAULT_NOAA_AR),
         "iris_output": str(IRIS_ALIGNED_PATH),
         "sst_wb_output": str(SST_WB_ALIGNED_PATH),
         "sst_nb_output": str(SST_NB_ALIGNED_PATH),
@@ -427,18 +525,22 @@ def ensure_initial_alignment(
     iris_shift_arcsec: tuple[float, float] = DEFAULT_IRIS_SHIFT_ARCSEC,
     iris_rotation_deg: float = DEFAULT_IRIS_ROTATION_DEG,
     solve_iris_against_hmi: bool = True,
+    noaa_ar: str | int | None = None,
 ) -> dict:
     ensure_output_dir()
     apply_sst_shift(SST_WB_SOURCE_PATH, SST_WB_ALIGNED_PATH, sst_shift_arcsec, overwrite=overwrite)
     solved_iris_frame = None
+    hmi_path = ensure_hmi_fits(noaa_ar=noaa_ar) if solve_iris_against_hmi else HMI_PATH
     if solve_iris_against_hmi:
         tmp_header_report = create_initial_report(
             sst_shift_arcsec=sst_shift_arcsec,
             iris_shift_arcsec=(0.0, 0.0),
             iris_rotation_deg=0.0,
+            reference_hmi_path=hmi_path,
+            noaa_ar=noaa_ar,
         )
         save_report(tmp_header_report)
-        hmi_map = load_hmi_map()
+        hmi_map = load_hmi_map(noaa_ar=noaa_ar, hmi_path=hmi_path)
         iris_solution = solve_iris_to_hmi(hmi_map, iris_path=IRIS_SOURCE_PATH, frame_index=tmp_header_report["iris"]["frame_index"])
         iris_shift_arcsec = tuple(iris_solution["world_shift_arcsec"])
         iris_rotation_deg = float(iris_solution["rotation_deg"])
@@ -455,6 +557,8 @@ def ensure_initial_alignment(
         iris_shift_arcsec=iris_shift_arcsec,
         iris_rotation_deg=iris_rotation_deg,
         iris_frame_index=solved_iris_frame,
+        reference_hmi_path=hmi_path,
+        noaa_ar=noaa_ar,
     )
     if solve_iris_against_hmi:
         report["iris"]["solved_against_hmi"] = True
@@ -464,11 +568,11 @@ def ensure_initial_alignment(
     return report
 
 
-def load_hmi_map():
+def load_hmi_map(noaa_ar: str | int | None = None, hmi_path: Path | None = None):
     import sunpy.map
 
-    ensure_hmi_fits()
-    return sunpy.map.Map(HMI_PATH)
+    resolved_path = ensure_hmi_fits(output_path=hmi_path, noaa_ar=noaa_ar)
+    return sunpy.map.Map(resolved_path)
 
 
 def make_iris_map(hmi_map, frame_index: int, iris_path: Path = IRIS_ALIGNED_PATH):

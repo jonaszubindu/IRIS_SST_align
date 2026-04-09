@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 
-from alignment_common import DEFAULT_HMI_EXPORT_QUERY, DEFAULT_JSOC_EMAIL, HMI_PATH, ensure_hmi_fits
+from alignment_common import DEFAULT_JSOC_EMAIL, DEFAULT_NOAA_AR, HMI_PATH, ensure_hmi_fits
 
 
 def parse_args() -> argparse.Namespace:
@@ -15,9 +15,9 @@ def parse_args() -> argparse.Namespace:
         help="Registered JSOC email address. Defaults to IRIS_SST_ALIGN_JSOC_EMAIL or JSOC_EMAIL.",
     )
     parser.add_argument(
-        "--query",
-        default=DEFAULT_HMI_EXPORT_QUERY,
-        help="DRMS export query for the HMI reference segment.",
+        "--noaa-ar",
+        default=DEFAULT_NOAA_AR,
+        help="NOAA active-region number used to build the HMI JSOC query.",
     )
     parser.add_argument(
         "--output",
@@ -29,7 +29,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    hmi_path = ensure_hmi_fits(output_path=args.output, email=args.email, export_query=args.query)
+    hmi_path = ensure_hmi_fits(output_path=args.output, email=args.email, noaa_ar=args.noaa_ar)
     print(f"HMI reference FITS is available at {hmi_path}")
 
 

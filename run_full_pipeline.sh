@@ -9,6 +9,7 @@ export MPLCONFIGDIR="${MPLCONFIGDIR:-/tmp/matplotlib-codex}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp}"
 
 PYTHON_BIN="${PYTHON_BIN:-python}"
+NOAA_AR="${IRIS_SST_ALIGN_NOAA_AR:-}"
 
 log() {
   printf '\n[%s] %s\n' "$(date '+%H:%M:%S')" "$*"
@@ -62,6 +63,7 @@ check_required_files() {
   "$PYTHON_BIN" - <<'PY'
 from pathlib import Path
 from astropy.io import fits
+import os
 from alignment_common import DATA_DIR, HMI_PATH, IRIS_SOURCE_PATH, SST_WB_SOURCE_PATH, SST_NB_SOURCE_PATH, ensure_hmi_fits, file_is_truncated_primary_hdu
 
 required = [
@@ -76,7 +78,7 @@ for label, path in required:
     fits.getheader(path, 0)
     print(f"OK: {label}: {path}")
 
-hmi_path = ensure_hmi_fits()
+hmi_path = ensure_hmi_fits(noaa_ar=os.environ.get("IRIS_SST_ALIGN_NOAA_AR", ""))
 fits.getheader(hmi_path, 0)
 print(f"OK: HMI: {hmi_path}")
 
@@ -102,7 +104,7 @@ clear_old_outputs() {
 
 run_initial_alignment() {
   log "Running initial coarse alignment"
-  "$PYTHON_BIN" "$REPO_DIR/align_iris_sst.py" --reset
+  "$PYTHON_BIN" "$REPO_DIR/align_iris_sst.py" --reset --noaa-ar "$NOAA_AR"
 }
 
 verify_iris_save() {
