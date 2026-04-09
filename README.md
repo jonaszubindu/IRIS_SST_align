@@ -39,29 +39,49 @@ The workflow is intentionally simple:
 - `run_full_pipeline.sh`
   Runs the full workflow, including the interactive steps.
 
-## Paths You Must Check On Another Machine
+## Installation
 
-Before running this repo elsewhere, check these paths in `alignment_common.py`:
+Install from the repository root:
 
-- `DATA_DIR`
-  This is currently set to the local folder that contains the SST, IRIS, and helper files.
+```bash
+pip install -e .
+```
+
+This installs command-line entry points such as:
+
+- `iris-sst-align-init`
+- `iris-sst-align-fetch-hmi`
+- `iris-sst-align-run`
+- `iris-sst-align-iris-app`
+- `iris-sst-align-sst-app`
+- `iris-sst-align-plot-hmi`
+- `iris-sst-align-plot-overlap`
+- `iris-sst-align-blink`
+- `iris-sst-align-update-nb`
+
+## Configuration On Another Machine
+
+You can configure the repo without editing the code by setting environment variables:
+
+- `IRIS_SST_ALIGN_DATA_DIR`
+  Directory containing the SST, IRIS, and helper files.
+
+- `IRIS_SST_ALIGN_HMI_PATH`
+  Optional explicit path to the local HMI FITS file.
+
+- `IRIS_SST_ALIGN_JSOC_EMAIL`
+  Registered JSOC email address used when the HMI file needs to be downloaded automatically through `drms`.
+
+If you prefer editing the code directly, the relevant paths are in `alignment_common.py`.
+
+These source-file paths are derived from `DATA_DIR`, so in most cases changing `IRIS_SST_ALIGN_DATA_DIR` is enough:
 
 - `SST_WB_SOURCE_PATH`
 - `SST_NB_SOURCE_PATH`
 - `IRIS_SOURCE_PATH`
 - `STIC_UTILS_PATH`
 
-These are derived from `DATA_DIR`, so in most cases changing `DATA_DIR` is enough.
-
-Also check:
-
-- `HMI_PATH`
-  This points to the local HMI FITS file under `data/hmi/`.
-  On another machine, either place the HMI file in the same relative location inside the repo:
-  `data/hmi/hmi.sharp_720s.13354.20250619_083600_TAI.continuum.fits`
-  or update `HMI_PATH` accordingly.
-
-You do not need to change:
+You normally do not need to change:
 
 - `WORKDIR`
   It is derived automatically from the location of `alignment_common.py`.
@@ -82,6 +102,8 @@ The HMI reference file is expected at:
 
 - `data/hmi/hmi.sharp_720s.13354.20250619_083600_TAI.continuum.fits`
 
+If it is missing, the code will try to download it automatically from JSOC via `drms` using `IRIS_SST_ALIGN_JSOC_EMAIL` or `JSOC_EMAIL`.
+
 ## Running The Workflow
 
 Run from the repository root:
@@ -89,6 +111,12 @@ Run from the repository root:
 ```bash
 cd /path/to/IRIS_SST_align
 bash run_full_pipeline.sh
+```
+
+After installation, you can also run:
+
+```bash
+iris-sst-align-run
 ```
 
 The script will:
@@ -110,40 +138,46 @@ If you want to run steps separately:
 Initial alignment:
 
 ```bash
-python align_iris_sst.py --reset
+iris-sst-align-init --reset
 ```
 
 IRIS manual alignment:
 
 ```bash
-python interactive_iris_hmi_align.py
+iris-sst-align-iris-app
 ```
 
 SST manual alignment:
 
 ```bash
-python interactive_sst_manual_align.py
+iris-sst-align-sst-app
 ```
 
 WB comparison plots:
 
 ```bash
-python plot_vs_hmi.py --sst-kind wb --num-samples 3
-python plot_sst_iris_time_overlap.py --sst-kind wb --num-samples 3
-python sunpy_alignment_check.py
+iris-sst-align-plot-hmi --sst-kind wb --num-samples 3
+iris-sst-align-plot-overlap --sst-kind wb --num-samples 3
+iris-sst-align-blink
 ```
 
 NB comparison plots:
 
 ```bash
-python plot_vs_hmi.py --sst-kind nb --num-samples 3
-python plot_sst_iris_time_overlap.py --sst-kind nb --num-samples 3
+iris-sst-align-plot-hmi --sst-kind nb --num-samples 3
+iris-sst-align-plot-overlap --sst-kind nb --num-samples 3
 ```
 
 NB aligned cube:
 
 ```bash
-python update_sst_nb_wcs.py
+iris-sst-align-update-nb
+```
+
+Explicit HMI download:
+
+```bash
+iris-sst-align-fetch-hmi --email you@example.org
 ```
 
 ## Outputs

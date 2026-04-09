@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iris-sst-align"
+version = "0.1.0"
+description = "Manual-assisted alignment workflow for IRIS, SST, and HMI observations."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "astropy",
+  "dash",
+  "drms",
+  "matplotlib",
+  "numpy",
+  "plotly",
+  "scikit-image",
+  "scipy",
+  "sunpy",
+]
+
+[project.scripts]
+iris-sst-align-init = "align_iris_sst:main"
+iris-sst-align-fetch-hmi = "download_hmi_reference:main"
+iris-sst-align-iris-app = "interactive_iris_hmi_align:main"
+iris-sst-align-run = "run_pipeline:main"
+iris-sst-align-sst-app = "interactive_sst_manual_align:main"
+iris-sst-align-plot-hmi = "plot_vs_hmi:main"
+iris-sst-align-plot-overlap = "plot_sst_iris_time_overlap:main"
+iris-sst-align-blink = "sunpy_alignment_check:main"
+iris-sst-align-update-nb = "update_sst_nb_wcs:main"
+
+[tool.setuptools]
+py-modules = [
+  "align_iris_sst",
+  "alignment_common",
+  "download_hmi_reference",
+  "interactive_iris_hmi_align",
+  "interactive_sst_manual_align",
+  "plot_iris_direct",
+  "plot_sst_iris_time_overlap",
+  "plot_vs_hmi",
+  "run_pipeline",
+  "sunpy_alignment_check",
+  "update_sst_nb_wcs",
+]

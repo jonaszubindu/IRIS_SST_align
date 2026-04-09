@@ -62,10 +62,9 @@ check_required_files() {
   "$PYTHON_BIN" - <<'PY'
 from pathlib import Path
 from astropy.io import fits
-from alignment_common import DATA_DIR, HMI_PATH, IRIS_SOURCE_PATH, SST_WB_SOURCE_PATH, SST_NB_SOURCE_PATH, file_is_truncated_primary_hdu
+from alignment_common import DATA_DIR, HMI_PATH, IRIS_SOURCE_PATH, SST_WB_SOURCE_PATH, SST_NB_SOURCE_PATH, ensure_hmi_fits, file_is_truncated_primary_hdu
 
 required = [
-    ("HMI", HMI_PATH),
     ("IRIS", IRIS_SOURCE_PATH),
     ("SST WB", SST_WB_SOURCE_PATH),
 ]
@@ -76,6 +75,10 @@ for label, path in required:
         raise SystemExit(f"Missing required file: {label}: {path}")
     fits.getheader(path, 0)
     print(f"OK: {label}: {path}")
+
+hmi_path = ensure_hmi_fits()
+fits.getheader(hmi_path, 0)
+print(f"OK: HMI: {hmi_path}")
 
 nb_path = Path(SST_NB_SOURCE_PATH)
 if nb_path.exists():

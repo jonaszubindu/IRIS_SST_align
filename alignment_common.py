@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import shutil
 from pathlib import Path
 
@@ -12,15 +13,23 @@ from astropy.wcs import WCS
 from astropy.time import Time, TimeDelta
 
 
-DATA_DIR = Path("/Users/jonaszbinden/Desktop/Align_IRIS_SST_proj")
 WORKDIR = Path(__file__).resolve().parent
 OUTPUT_DIR = WORKDIR / "outputs"
 DATA_HMI_DIR = WORKDIR / "data/hmi"
+DEFAULT_DATA_DIR = Path("/Users/jonaszbinden/Desktop/Align_IRIS_SST_proj")
+DATA_DIR = Path(os.environ.get("IRIS_SST_ALIGN_DATA_DIR", str(DEFAULT_DATA_DIR))).expanduser()
 
-HMI_PATH = DATA_HMI_DIR / "hmi.sharp_720s.13354.20250619_083600_TAI.continuum.fits"
+DEFAULT_HMI_FILENAME = "hmi.sharp_720s.13354.20250619_083600_TAI.continuum.fits"
+HMI_PATH = Path(os.environ.get("IRIS_SST_ALIGN_HMI_PATH", str(DATA_HMI_DIR / DEFAULT_HMI_FILENAME))).expanduser()
 IRIS_SOURCE_PATH = DATA_DIR / "iris_l2_20250619_072925_3660106834_SJI_2832_t000.fits"
 SST_WB_SOURCE_PATH = DATA_DIR / "wb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_im.fits"
 SST_NB_SOURCE_PATH = DATA_DIR / "nb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_cmapcorr_im.fits"
+STIC_UTILS_PATH = DATA_DIR / "STIC_pyfun_utils.py"
+
+DEFAULT_JSOC_EMAIL = os.environ.get("IRIS_SST_ALIGN_JSOC_EMAIL", os.environ.get("JSOC_EMAIL", "")).strip()
+DEFAULT_HMI_SERIES = "hmi.sharp_720s[][2025.06.19_08:35:00_TAI/1m][?(NOAA_AR=14114)?]"
+DEFAULT_HMI_SEGMENT = "continuum"
+DEFAULT_HMI_EXPORT_QUERY = f"{DEFAULT_HMI_SERIES}{{{DEFAULT_HMI_SEGMENT}}}"
 
 IRIS_ALIGNED_PATH = OUTPUT_DIR / "iris_l2_20250619_072925_3660106834_SJI_2832_t000_aligned.fits"
 SST_WB_ALIGNED_PATH = OUTPUT_DIR / "wb_3950_2025-06-19T08:35:11_08:35:11=0-76_corrected_im_aligned.fits"
@@ -35,6 +44,65 @@ DEFAULT_IRIS_ROTATION_DEG = 0.0
 
 def ensure_output_dir() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def ensure_hmi_dir() -> None:
+    HMI_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+
+def export_hmi_reference(
+    email: str,
+    output_path: Path = HMI_PATH,
+    export_query: str = DEFAULT_HMI_EXPORT_QUERY,
+) -> Path:
+    try:
+        import drms
+    except ImportError as exc:  # pragma: no cover - dependency/runtime specific
+        raise RuntimeError(
+            "The HMI reference file is missing and the 'drms' package is not installed. "
+            "Install the package dependencies or place the HMI FITS at the configured HMI path."
+        ) from exc
+
+    if not email:
+        raise RuntimeError(
+            "The HMI reference file is missing and no JSOC email is configured. "
+            "Set IRIS_SST_ALIGN_JSOC_EMAIL or JSOC_EMAIL, or place the HMI FITS at the configured HMI path."
+        )
+
+    ensure_hmi_dir()
+    output_path = Path(output_path)
+    client = drms.Client(email=email, verbose=False)
+    export_request = client.export(export_query, method="url", protocol="fits")
+    if hasattr(export_request, "wait"):
+        export_request.wait()
+
+    if hasattr(export_request, "download"):
+        export_request.download(output_path.parent)
+    else:  # pragma: no cover - defensive API fallback
+        raise RuntimeError("DRMS export request does not support direct download in this environment.")
+
+    downloaded = sorted(output_path.parent.glob("*.fits"), key=lambda path: path.stat().st_mtime, reverse=True)
+    if not downloaded:
+        raise RuntimeError(f"JSOC export succeeded but no FITS file was downloaded into {output_path.parent}.")
+
+    candidate = downloaded[0]
+    if candidate.resolve() != output_path.resolve():
+        if output_path.exists():
+            output_path.unlink()
+        candidate.replace(output_path)
+    return output_path
+
+
+def ensure_hmi_fits(
+    output_path: Path = HMI_PATH,
+    email: str | None = None,
+    export_query: str = DEFAULT_HMI_EXPORT_QUERY,
+) -> Path:
+    output_path = Path(output_path)
+    if output_path.exists():
+        return output_path
+    resolved_email = (email or DEFAULT_JSOC_EMAIL).strip()
+    return export_hmi_reference(resolved_email, output_path=output_path, export_query=export_query)
 
 
 def load_report() -> dict:
@@ -399,6 +467,7 @@ def ensure_initial_alignment(
 def load_hmi_map():
     import sunpy.map
 
+    ensure_hmi_fits()
     return sunpy.map.Map(HMI_PATH)
 
 
