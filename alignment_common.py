@@ -71,7 +71,7 @@ def export_hmi_reference(
 
     ensure_hmi_dir()
     output_path = Path(output_path)
-    client = drms.Client(email=email, verbose=False)
+    client = drms.Client(email=email)
     export_request = client.export(export_query, method="url", protocol="fits")
     if hasattr(export_request, "wait"):
         export_request.wait()
