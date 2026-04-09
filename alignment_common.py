@@ -4,6 +4,7 @@ import json
 import math
 import os
 import shutil
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -45,6 +46,44 @@ DEFAULT_IRIS_ROTATION_DEG = 0.0
 
 def ensure_output_dir() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _format_gib(num_bytes: int) -> str:
+    return f"{num_bytes / (1024 ** 3):.1f} GiB"
+
+
+def copy_file_with_progress(
+    source_path: Path,
+    output_path: Path,
+    chunk_size: int = 64 * 1024 * 1024,
+) -> None:
+    source_path = Path(source_path)
+    output_path = Path(output_path)
+    total_bytes = source_path.stat().st_size
+    copied = 0
+    last_percent = -1
+
+    print(f"Copying NB cube: {_format_gib(total_bytes)} total", file=sys.stderr, flush=True)
+    with source_path.open("rb") as src, output_path.open("wb") as dst:
+        while True:
+            chunk = src.read(chunk_size)
+            if not chunk:
+                break
+            dst.write(chunk)
+            copied += len(chunk)
+            percent = int((100 * copied) / total_bytes) if total_bytes else 100
+            if percent != last_percent:
+                filled = min(40, int(percent * 40 / 100))
+                bar = "#" * filled + "-" * (40 - filled)
+                print(
+                    f"\r[{bar}] {percent:3d}%  {_format_gib(copied)} / {_format_gib(total_bytes)}",
+                    end="",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                last_percent = percent
+    shutil.copystat(source_path, output_path)
+    print(file=sys.stderr, flush=True)
 
 
 def ensure_hmi_dir() -> None:
@@ -839,8 +878,9 @@ def update_nb_cube_wcs_from_wb(
 
     if output_path.exists():
         output_path.unlink()
-    shutil.copy2(nb_path, output_path)
+    copy_file_with_progress(nb_path, output_path)
     wcs_hdu = build_nb_wcs_tab_from_aligned_wb(wb_aligned_path, nb_header)
+    print("Preparing NB WCS-TAB update...", file=sys.stderr, flush=True)
     with fits.open(output_path, mode="update", memmap=True) as hdul:
         hdr = hdul[0].header
         wb_hdr = fits.getheader(wb_aligned_path, 0)
@@ -854,5 +894,7 @@ def update_nb_cube_wcs_from_wb(
             hdul[idx] = wcs_hdu
         else:
             hdul.append(wcs_hdu)
+        print("Writing WCS-TAB to aligned NB cube...", file=sys.stderr, flush=True)
         hdul.flush()
+    print("NB cube update complete.", file=sys.stderr, flush=True)
     return output_path
