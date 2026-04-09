@@ -45,7 +45,7 @@ prompt_choice() {
   for choice in "${choices[@]}"; do
     echo "  $choice" >&2
   done
-  read -r -p "Select an option: " answer >&2
+  read -r -p "Select an option: " answer </dev/tty
   echo "$answer"
 }
 
@@ -283,6 +283,9 @@ review_wb_loop() {
       6)
         echo "Stopping after WB products."
         exit 0
+        ;;
+      "")
+        echo "Please enter one of: 1, 2, 3, 4, 5, 6"
         ;;
       *)
         echo "Unrecognized choice: $choice"
